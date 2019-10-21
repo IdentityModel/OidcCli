@@ -5,7 +5,18 @@
     <OutputType>Exe</OutputType>
     <PackAsTool>true</PackAsTool>
     <ToolCommandName>oidcclient</ToolCommandName>
+
+    <Authors>Dominick Baier</Authors>
+    <Description>OpenID Connect &amp; OAuth 2.0 CLI client</Description>
+    <PackageTags>OAuth2;OAuth 2.0;OpenID Connect;Security;Identity;IdentityServer</PackageTags>
+    <PackageIcon>icon.jpg</PackageIcon>
+    <PackageProjectUrl>https://github.com/IdentityModel/IdentityModel/OidcClient</PackageProjectUrl>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="../icon.jpg" Pack="true" Visible="false" PackagePath="" />
+  </ItemGroup>
 
   <ItemGroup>
     <PackageReference Include="IdentityModel.OidcClient" Version="3.0.0" />
