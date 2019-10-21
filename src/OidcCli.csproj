@@ -2,9 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>netcoreapp3.0</TargetFramework>
+    <PackageId>IdentityModel.OidcCli</PackageId>
     <OutputType>Exe</OutputType>
     <PackAsTool>true</PackAsTool>
-    <ToolCommandName>oidcclient</ToolCommandName>
+    <ToolCommandName>oidccli</ToolCommandName>
 
     <Authors>Dominick Baier</Authors>
     <Description>OpenID Connect &amp; OAuth 2.0 CLI client</Description>
