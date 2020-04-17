@@ -1,108 +1,92 @@
 ﻿using System;
 using System.IO;
-using System.Linq;
-using McMaster.Extensions.CommandLineUtils;
 using static Bullseye.Targets;
 using static SimpleExec.Command;
 
 namespace build
 {
-    class Program
+    internal static class Program
     {
-        private const bool RequireTests = false;
+        private const string packOutput = "./artifacts";
+        private const string envVarMissing = " environment variable is missing. Aborting.";
 
-        private const string ArtifactsDir = "artifacts";
-        private const string Build = "build";
-        private const string Test = "test";
-        private const string Pack = "pack";
-        
-        static void Main(string[] args)
+        private static class Targets
         {
-            var app = new CommandLineApplication(throwOnUnexpectedArg: false);
-            var sign = app.Option<(bool hasValue, int theValue)>("--sign", "Sign binaries and nuget package", CommandOptionType.SingleOrNoValue);
-
-            CleanArtifacts();
-
-            app.OnExecute(() =>
-            {
-                Target(Build, () => 
-                {
-                    var solution = Directory.GetFiles(".", "*.sln", SearchOption.TopDirectoryOnly).First();
-
-                    Run("dotnet", $"build {solution} -c Release");
-                });
-
-                Target(Test, DependsOn(Build), () => 
-                {
-                    try
-                    {
-                        var tests = Directory.GetFiles("./test", "*.csproj", SearchOption.AllDirectories);
-
-                        foreach (var test in tests)
-                        {
-                            Run("dotnet", $"test {test} -c Release --no-build");
-                        }    
-                    }
-                    catch (System.IO.DirectoryNotFoundException ex)
-                    {
-                        if (RequireTests)
-                        {
-                            throw new Exception($"No tests found: {ex.Message}");
-                        };
-                    }
-                });
-                
-                Target(Pack, DependsOn(Build), () => 
-                {
-                    var project = Directory.GetFiles("./src", "*.csproj", SearchOption.TopDirectoryOnly).First();
-
-                    Run("dotnet", $"pack {project} -c Release -o ./{ArtifactsDir} --no-build");
-                    
-                    if (sign.HasValue())
-                    {
-                        Sign("*.nupkg", $"./{ArtifactsDir}");
-                    }
-                });
-
-
-                Target("default", DependsOn(Test, Pack));
-                RunTargetsAndExit(app.RemainingArguments);
-            });
-
-            app.Execute(args);
+            public const string RestoreTools = "restore-tools";
+            public const string CleanBuildOutput = "clean-build-output";
+            public const string CleanPackOutput = "clean-pack-output";
+            public const string Build = "build";
+            public const string Test = "test";
+            public const string Pack = "pack";
+            public const string SignPackage = "sign-package";
         }
 
-        private static void Sign(string extension, string directory)
+        internal static void Main(string[] args)
+        {
+            Target(Targets.RestoreTools, () =>
+            {
+                Run("dotnet", "tool restore");
+            });
+
+            Target(Targets.CleanBuildOutput, () =>
+            {
+                Run("dotnet", "clean -c Release -v m --nologo");
+            });
+
+            Target(Targets.Build, DependsOn(Targets.CleanBuildOutput), () =>
+            {
+                Run("dotnet", "build -c Release --nologo");
+            });
+
+            Target(Targets.Test, DependsOn(Targets.Build), () =>
+            {
+                Run("dotnet", "test -c Release --no-build --nologo");
+            });
+
+            Target(Targets.CleanPackOutput, () =>
+            {
+                if (Directory.Exists(packOutput))
+                {
+                    Directory.Delete(packOutput, true);
+                }
+            });
+
+            Target(Targets.Pack, DependsOn(Targets.Build, Targets.CleanPackOutput), () =>
+            {
+                Run("dotnet", $"pack ./src/OidcCli.csproj -c Release -o {Directory.CreateDirectory(packOutput).FullName} --no-build --nologo");
+            });
+
+            Target(Targets.SignPackage, DependsOn(Targets.Pack, Targets.RestoreTools), () =>
+            {
+                Sign(packOutput, "*.nupkg");
+            });
+
+            Target("default", DependsOn(Targets.Test, Targets.Pack));
+
+            Target("sign", DependsOn(Targets.Test, Targets.SignPackage));
+
+            RunTargetsAndExit(args, ex => ex is SimpleExec.NonZeroExitCodeException || ex.Message.EndsWith(envVarMissing));
+        }
+
+        private static void Sign(string path, string searchTerm)
         {
             var signClientConfig = Environment.GetEnvironmentVariable("SignClientConfig");
             var signClientSecret = Environment.GetEnvironmentVariable("SignClientSecret");
 
             if (string.IsNullOrWhiteSpace(signClientConfig))
             {
-                throw new Exception("SignClientConfig environment variable is missing. Aborting.");
+                throw new Exception($"SignClientConfig{envVarMissing}");
             }
 
             if (string.IsNullOrWhiteSpace(signClientSecret))
             {
-                throw new Exception("SignClientSecret environment variable is missing. Aborting.");
+                throw new Exception($"SignClientSecret{envVarMissing}");
             }
 
-            var files = Directory.GetFiles(directory, extension, SearchOption.AllDirectories);
-
-            foreach (var file in files)
+            foreach (var file in Directory.GetFiles(path, searchTerm, SearchOption.AllDirectories))
             {
-                Console.WriteLine("  Signing " + file);
+                Console.WriteLine($"  Signing {file}");
                 Run("dotnet", $"SignClient sign -c {signClientConfig} -i {file} -r sc-ids@dotnetfoundation.org -s \"{signClientSecret}\" -n 'IdentityServer4'", noEcho: true);
-            }
-        }
-
-        private static void CleanArtifacts()
-        {
-            Directory.CreateDirectory($"./{ArtifactsDir}");
-
-            foreach (var file in Directory.GetFiles($"./{ArtifactsDir}"))
-            {
-                File.Delete(file);
             }
         }
     }
