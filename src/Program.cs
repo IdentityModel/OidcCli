@@ -18,7 +18,8 @@ namespace ConsoleClientWithBrowser
         /// <param name="s">The scope (defaults to 'openid')</param>
         /// <param name="p">The callback port (defaults to a random port)</param>
         ///<param name="d">Enables diagnostics</param>
-        static async Task<int> Main(string a, string c, string s = "openid", int p = 0, bool d = false)
+        /// <param name="clientSecret">The client secret (optional)</param>
+        static async Task<int> Main(string a, string c, string s = "openid", int p = 0, bool d = false, string clientSecret = null)
         {
             if (string.IsNullOrEmpty(a))
             {
@@ -51,7 +52,8 @@ namespace ConsoleClientWithBrowser
                 FilterClaims = false,
                 Browser = browser,
                 Flow = OidcClientOptions.AuthenticationFlow.AuthorizationCode,
-                ResponseMode = OidcClientOptions.AuthorizeResponseMode.Redirect
+                ResponseMode = OidcClientOptions.AuthorizeResponseMode.Redirect,
+                ClientSecret = clientSecret,
             };
 
             if (d)
