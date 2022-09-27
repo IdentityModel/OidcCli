@@ -1,8 +1,10 @@
 using Nuke.Common;
 using Nuke.Common.CI.GitHubActions;
+using Nuke.Common.Git;
 using Nuke.Common.IO;
 using Nuke.Common.ProjectModel;
 using Nuke.Common.Tools.DotNet;
+using Nuke.Common.Tools.GitVersion;
 using static Nuke.Common.IO.FileSystemTasks;
 using static Nuke.Common.Tools.DotNet.DotNetTasks;
 
@@ -28,6 +30,8 @@ class Build : NukeBuild
 
     [Parameter("Configuration to build - Default is 'Debug' (local) or 'Release' (server)")]
     readonly Configuration Configuration = IsLocalBuild ? Configuration.Debug : Configuration.Release;
+
+    [GitRepository] [Required] GitRepository GitRepository;
 
     [Solution] readonly Solution Solution;
 
@@ -63,4 +67,25 @@ class Build : NukeBuild
                 .SetConfiguration(Configuration)
                 .EnableNoRestore());
         });
+
+    Target Pack => _ => _
+        .DependsOn(Compile)
+        .Produces(OutputDirectory / "*.nupkg")
+        .Executes(() =>
+        {
+            DotNetPack(s => s
+                .SetProject(Solution)
+                .SetConfiguration(Configuration)
+                .SetNoBuild(SucceededTargets.Contains(Compile))
+                .SetOutputDirectory(OutputDirectory)
+                .SetRepositoryUrl(GitRepository.HttpsUrl));
+        });
+
+    Target Publish => _ => _
+        .DependsOn(Pack)
+        .Consumes(Pack)
+        .Executes(() =>
+        {
+        });
+
 }
