@@ -1,4 +1,6 @@
 ﻿using System.CommandLine;
+using System.Net.Sockets;
+using System.Net;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using IdentityModel.Client;
@@ -19,7 +21,7 @@ public class AuthenticateCommand : RootCommand
         _loggerFactory = loggerFactory;
 
         var authorityOption = new Option<string>(
-            aliases: new []{ "--authority", "-a" },
+            name: "--authority",
             description: "The authority (required)");
 
         AddOption(authorityOption);
@@ -32,21 +34,20 @@ public class AuthenticateCommand : RootCommand
 
         var scopeOption = new Option<string>(
             name: "--scope",
-            description: "The scope (defaults to 'openid')",
+            description: "The scope (optional, defaults to 'openid')",
             getDefaultValue: () => "openid");
 
         AddOption(scopeOption);
 
-        var portOption = new Option<int>(
+        var portOption = new Option<int?>(
             name: "--port",
-            description: "The callback port (defaults to a random port)",
-            getDefaultValue: () => 8082); // todo: default to random value
+            description: "The callback port (optional, defaults to a random port)"); // todo: default to random value
 
         AddOption(portOption);
 
         var audienceOption = new Option<string?>(
             name: "--audience",
-            description: "The audience");
+            description: "The audience (optional)");
 
         AddOption(audienceOption);
 
@@ -60,20 +61,23 @@ public class AuthenticateCommand : RootCommand
         }, authorityOption, clientIdOption, scopeOption, portOption, audienceOption);
     }
 
-    private async Task<bool> AuthenticateAsync(string authority, string clientId, string scope, int port,
+    private async Task AuthenticateAsync(string authority, string clientId, string scope, int? port = null,
         string? audience = null, CancellationToken cancellationToken = default)
     {
+        port ??= GetRandomUnusedPort();
+
         var options = new OidcClientOptions
         {
             LoggerFactory = _loggerFactory,
             Policy = new Policy { RequireAccessTokenHash = false },
             Authority = authority,
             ClientId = clientId,
+            FilterClaims = false,
             LoadProfile = true,
             RedirectUri = $"http://127.0.0.1:{port}",
             PostLogoutRedirectUri = $"http://127.0.0.1:{port}",
             Scope = scope,
-            Browser = new SystemBrowser(port)
+            Browser = new SystemBrowser(port.Value)
         };
 
         var oidcClient = new OidcClient(options);
@@ -94,22 +98,32 @@ public class AuthenticateCommand : RootCommand
         {
             WriteIndented = true,
             DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
         if (result.IsError)
-            return false;
+            return;
 
         var output = new Output
         {
-            id_token = result.IdentityToken,
-            access_token = result.AccessToken,
-            refresh_token = result.RefreshToken,
-            expires_at = result.AccessTokenExpiration,
-            claims = result.User.Claims.Select(c => new Output.claim { type = c.Type, value = c.Value })
+            IdToken = result.IdentityToken,
+            AccessToken = result.AccessToken,
+            RefreshToken = result.RefreshToken,
+            ExpiresAt = result.AccessTokenExpiration,
+            Claims = result.User.Claims.Select(c => new Output.Claim { Type = c.Type, Value = c.Value })
         };
 
         _logger.LogInformation(JsonSerializer.Serialize(output, jsonOptions));
+    }
 
-        return true;
+    private static int GetRandomUnusedPort()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+
+        return port;
     }
 }
