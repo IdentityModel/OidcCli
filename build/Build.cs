@@ -13,7 +13,7 @@ using static Nuke.Common.Tools.DotNet.DotNetTasks;
     GitHubActionsImage.WindowsLatest,
     GitHubActionsImage.UbuntuLatest,
     GitHubActionsImage.MacOsLatest,
-    OnPushBranchesIgnore = new[] { MainBranch, $"{ReleaseBranchPrefix}/*" },
+    OnPushBranches = new[] { MainBranch, $"{ReleaseBranchPrefix}/*" },
     OnPullRequestBranches = new[] { MainBranch },
     InvokedTargets = new[] { nameof(Compile) },
     CacheKeyFiles = new[] { "global.json", "source/**/*.csproj" },
