@@ -7,6 +7,12 @@
       "commands": [
         "SignClient"
       ]
+    },
+    "nuke.globaltool": {
+      "version": "6.2.1",
+      "commands": [
+        "nuke"
+      ]
     }
   }
 }
